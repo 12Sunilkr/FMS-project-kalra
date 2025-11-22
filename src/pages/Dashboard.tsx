@@ -25,6 +25,7 @@ interface UnifiedTask {
   createdBy?: string;
 }
 
+
 // Helper function to safely get attachments from a task
 const getTaskAttachments = (task: UnifiedTask): any[] => {
   if (task.type === 'FMS') {
@@ -40,10 +41,10 @@ const getTaskAttachments = (task: UnifiedTask): any[] => {
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const { 
+  const {
     myTasks: fmsTasks,
-    allProjects, 
-    loadMyTasks, 
+    allProjects,
+    loadMyTasks,
     loading: fmsLoading,
     error: fmsError,
     setError
@@ -63,16 +64,16 @@ export default function Dashboard() {
 
   // Unified state
   const [activeTab, setActiveTab] = useState<'assignedToMe' | 'iAssigned' | 'allTasks' | 'fms' | 'tm' | 'due' | 'objections' | 'assign' | 'performance'>('assignedToMe');
-  
+
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
-  
+
   // Search and filter state
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
-  const [dateRangeFilter, setDateRangeFilter] = useState<{start: string, end: string}>({start: '', end: ''});
+  const [dateRangeFilter, setDateRangeFilter] = useState<{ start: string, end: string }>({ start: '', end: '' });
 
   // Modal state - kept for checklist functionality
 
@@ -80,19 +81,19 @@ export default function Dashboard() {
   const [showChecklistModal, setShowChecklistModal] = useState(false);
   const [checklistItems, setChecklistItems] = useState<any[]>([]);
   const [taskToComplete, setTaskToComplete] = useState<UnifiedTask | null>(null);
-  
+
   // Attachment modal
   const [showAttachmentModal, setShowAttachmentModal] = useState(false);
   const [selectedTaskAttachments, setSelectedTaskAttachments] = useState<any[]>([]);
   const [selectedTaskForAttachments, setSelectedTaskForAttachments] = useState<UnifiedTask | null>(null);
-  
+
   // Confirmation modals
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [confirmAction, setConfirmAction] = useState<{
     type: 'approve' | 'reject';
     revision: any;
   } | null>(null);
-  
+
   // Hold options modal
   const [showHoldModal, setShowHoldModal] = useState(false);
   const [selectedObjectionForHold, setSelectedObjectionForHold] = useState<any>(null);
@@ -107,7 +108,7 @@ export default function Dashboard() {
   const [showObjectionModal, setShowObjectionModal] = useState(false);
   const [selectedTaskForObjection, setSelectedTaskForObjection] = useState<UnifiedTask | null>(null);
   const [objectionReason, setObjectionReason] = useState('');
-  
+
   const [success, setSuccess] = useState('');
 
   // Task Management Integration State
@@ -121,7 +122,7 @@ export default function Dashboard() {
     attachments: [] as any[]
   });
   const [hasPendingUploads, setHasPendingUploads] = useState(false);
-  
+
   // Performance/Scoring state
   const [selectedScoringUser, setSelectedScoringUser] = useState(user?.username || '');
   const [availableUsers, setAvailableUsers] = useState<TaskUser[]>([]);
@@ -146,14 +147,14 @@ export default function Dashboard() {
 
   const loadTaskManagementData = useCallback(async () => {
     if (!user?.username) return;
-    
+
     setTmLoading(true);
     try {
       const tasksResult = await api.getTasks(user.username, 'all');
       if (tasksResult.success) {
         setTmTasks(tasksResult.tasks || []);
       }
-      
+
       // Load task users for objection modal
       const usersResult = await api.getTaskUsers();
       if (usersResult.success) {
@@ -169,12 +170,17 @@ export default function Dashboard() {
 
   const loadObjections = useCallback(async () => {
     if (!user?.username) return;
-    
+
     setObjectionsLoading(true);
     try {
       const result = await api.getObjections(user.username);
+      console.log('Objections loaded sunil:', result);
       if (result.success) {
-        setObjections(result.objections || []);
+        const filteredObjections = (result.objections || []).filter(
+                      (task) => task.status !== "Approved-Replace"
+                    );
+
+                    setObjections(filteredObjections);
       }
     } catch (err: any) {
       console.error('Error loading objections:', err);
@@ -208,16 +214,16 @@ export default function Dashboard() {
   const setDefaultScoringDates = () => {
     const today = new Date();
     const currentDay = today.getDay();
-    
+
     const monday = new Date(today);
     monday.setDate(today.getDate() - currentDay + (currentDay === 0 ? -6 : 1));
-    
+
     const sunday = new Date(monday);
     sunday.setDate(monday.getDate() + 6);
-    
+
     const mondayISO = monday.toISOString().split('T')[0];
     const sundayISO = sunday.toISOString().split('T')[0];
-    
+
     setScoringDates({
       startDate: mondayISO,
       endDate: sundayISO
@@ -226,16 +232,16 @@ export default function Dashboard() {
 
   const handleAssignTask = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (hasPendingUploads) {
       setError('⚠️ Files are selected but not uploaded! Click "Upload to Drive Now!" button first.');
       return;
     }
-    
+
     setTmLoading(true);
     setError('');
     setSuccess('');
-    
+
     try {
       const result = await api.assignTask({
         givenBy: user!.username,
@@ -246,7 +252,7 @@ export default function Dashboard() {
         department: assignForm.department,
         attachments: assignForm.attachments
       });
-      
+
       if (result.success) {
         setSuccess(`Task ${result.taskId} assigned successfully!`);
         setAssignForm({
@@ -275,17 +281,17 @@ export default function Dashboard() {
       setError('Please select both start and end dates');
       return;
     }
-    
+
     setLoadingScoring(true);
     setError('');
-    
+
     try {
       const result = await api.getScoringData(
         selectedScoringUser,
         scoringDates.startDate,
         scoringDates.endDate
       );
-      
+
       if (result.success) {
         setScoringData(result.data);
       } else {
@@ -300,17 +306,17 @@ export default function Dashboard() {
 
   const getScoringUsers = () => {
     if (!user) return [];
-    
+
     const userRole = user.role?.toLowerCase();
-    
+
     if (userRole === 'superadmin' || userRole === 'super admin') {
       return availableUsers;
     }
-    
+
     if (userRole === 'admin') {
       return availableUsers.filter(u => u.department === user.department);
     }
-    
+
     return availableUsers.filter(u => u.userId === user.username);
   };
 
@@ -384,7 +390,7 @@ export default function Dashboard() {
   // Tasks I assigned (where I'm the creator)
   const tasksIAssigned = useMemo(() => {
     const unified: UnifiedTask[] = [];
-    
+
     // Get all tasks from FMS projects where current user is creator
     if (allProjects && allProjects.length > 0) {
       allProjects.forEach(project => {
@@ -395,7 +401,7 @@ export default function Dashboard() {
               const now = new Date();
               now.setHours(0, 0, 0, 0);
               dueDate.setHours(0, 0, 0, 0);
-              
+
               // Only include if current user is the creator
               if (task.who && project.tasks[0]?.who === user?.username) {
                 unified.push({
@@ -419,7 +425,7 @@ export default function Dashboard() {
         }
       });
     }
-    
+
     // Get all TM tasks where current user is the giver
     if (tmTasks && tmTasks.length > 0) {
       tmTasks.forEach(task => {
@@ -430,7 +436,7 @@ export default function Dashboard() {
             now.setHours(0, 0, 0, 0);
             dueDate.setHours(0, 0, 0, 0);
             const status = task['Task Status']?.toLowerCase() || '';
-            
+
             unified.push({
               id: `tm-assigned-${task['Task Id']}`,
               type: 'TASK_MANAGEMENT',
@@ -450,18 +456,18 @@ export default function Dashboard() {
         }
       });
     }
-    
+
     return unified.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
   }, [allProjects, tmTasks, user?.username]);
-  
+
   // All tasks (for super admin)
   const allTasksForAdmin = useMemo(() => {
     if (user?.role?.toLowerCase() !== 'superadmin' && user?.role?.toLowerCase() !== 'super admin') {
       return [];
     }
-    
+
     const unified: UnifiedTask[] = [];
-    
+
     // Get all FMS tasks from all projects
     if (allProjects && allProjects.length > 0) {
       allProjects.forEach(project => {
@@ -472,7 +478,7 @@ export default function Dashboard() {
               const now = new Date();
               now.setHours(0, 0, 0, 0);
               dueDate.setHours(0, 0, 0, 0);
-              
+
               unified.push({
                 id: `fms-all-${task.stepNo || Math.random()}`,
                 type: 'FMS',
@@ -493,7 +499,7 @@ export default function Dashboard() {
         }
       });
     }
-    
+
     // Get all TM tasks
     if (tmTasks && tmTasks.length > 0) {
       tmTasks.forEach(task => {
@@ -503,7 +509,7 @@ export default function Dashboard() {
           now.setHours(0, 0, 0, 0);
           dueDate.setHours(0, 0, 0, 0);
           const status = task['Task Status']?.toLowerCase() || '';
-          
+
           unified.push({
             id: `tm-all-${task['Task Id']}`,
             type: 'TASK_MANAGEMENT',
@@ -522,13 +528,13 @@ export default function Dashboard() {
         }
       });
     }
-    
+
     return unified.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
   }, [allProjects, tmTasks, user?.role]);
 
   const filteredTasks = useMemo(() => {
     let tasks: UnifiedTask[] = [];
-    
+
     // Select base tasks based on active tab
     switch (activeTab) {
       case 'assignedToMe':
@@ -560,11 +566,11 @@ export default function Dashboard() {
       default:
         tasks = allUnifiedTasks;
     }
-    
+
     // Apply search filter
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      tasks = tasks.filter(t => 
+      tasks = tasks.filter(t =>
         t.title.toLowerCase().includes(query) ||
         t.description?.toLowerCase().includes(query) ||
         t.projectName?.toLowerCase().includes(query) ||
@@ -572,17 +578,17 @@ export default function Dashboard() {
         t.assignee?.toLowerCase().includes(query)
       );
     }
-    
+
     // Apply status filter
     if (statusFilter !== 'all') {
       tasks = tasks.filter(t => t.status.toLowerCase() === statusFilter.toLowerCase());
     }
-    
+
     // Apply type filter
     if (typeFilter !== 'all') {
       tasks = tasks.filter(t => t.type === typeFilter);
     }
-    
+
     // Apply date range filter
     if (dateRangeFilter.start && dateRangeFilter.end) {
       const startDate = new Date(dateRangeFilter.start);
@@ -592,14 +598,14 @@ export default function Dashboard() {
         return taskDate >= startDate && taskDate <= endDate;
       });
     }
-    
+
     return tasks;
   }, [allUnifiedTasks, tasksIAssigned, allTasksForAdmin, activeTab, searchQuery, statusFilter, typeFilter, dateRangeFilter]);
 
   // Filter tasks assigned till current date (exclude future tasks)
   const now = new Date();
   now.setHours(0, 0, 0, 0);
-  
+
   const tasksAssignedTillToday = allUnifiedTasks.filter(t => {
     try {
       const dueDate = new Date(t.dueDate);
@@ -613,32 +619,32 @@ export default function Dashboard() {
 
   // Memoized statistics calculations for better performance
   const statistics = useMemo(() => {
-  // Fix: Use all tasks for total count and completion calculations (include future completed tasks)
-  const totalTasks = Math.max(0, allUnifiedTasks.length); // All tasks assigned to user
-  const fmsTaskCount = allUnifiedTasks.filter(t => t.type === 'FMS').length;
-  const tmTaskCount = allUnifiedTasks.filter(t => t.type === 'TASK_MANAGEMENT').length;
-  const completedTasks = allUnifiedTasks.filter(t => {
-    try {
-      return t.status === 'Done' || t.status?.toLowerCase() === 'completed';
-    } catch (error) {
-      console.error('Error checking task status:', error, t);
-      return false;
-    }
-  }).length;
-  const dueTasks = tasksAssignedTillToday.filter(t => {
-    try {
-      const dueDate = new Date(t.dueDate);
-      const now = new Date();
-      now.setHours(0, 0, 0, 0);
-      dueDate.setHours(0, 0, 0, 0);
-      const isNotCompleted = t.status !== 'Done' && t.status?.toLowerCase() !== 'completed';
-      return dueDate <= now && isNotCompleted;
-    } catch (error) {
-      console.error('Error checking due task:', error, t);
-      return false;
-    }
-  }).length;
-  const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+    // Fix: Use all tasks for total count and completion calculations (include future completed tasks)
+    const totalTasks = Math.max(0, allUnifiedTasks.length); // All tasks assigned to user
+    const fmsTaskCount = allUnifiedTasks.filter(t => t.type === 'FMS').length;
+    const tmTaskCount = allUnifiedTasks.filter(t => t.type === 'TASK_MANAGEMENT').length;
+    const completedTasks = allUnifiedTasks.filter(t => {
+      try {
+        return t.status === 'Done' || t.status?.toLowerCase() === 'completed';
+      } catch (error) {
+        console.error('Error checking task status:', error, t);
+        return false;
+      }
+    }).length;
+    const dueTasks = tasksAssignedTillToday.filter(t => {
+      try {
+        const dueDate = new Date(t.dueDate);
+        const now = new Date();
+        now.setHours(0, 0, 0, 0);
+        dueDate.setHours(0, 0, 0, 0);
+        const isNotCompleted = t.status !== 'Done' && t.status?.toLowerCase() !== 'completed';
+        return dueDate <= now && isNotCompleted;
+      } catch (error) {
+        console.error('Error checking due task:', error, t);
+        return false;
+      }
+    }).length;
+    const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
     return { totalTasks, fmsTaskCount, tmTaskCount, completedTasks, dueTasks, completionRate };
   }, [allUnifiedTasks, tasksAssignedTillToday]);
@@ -659,18 +665,18 @@ export default function Dashboard() {
   const handleCompleteTask = async (task: UnifiedTask) => {
     // Check if task requires checklist
     const fmsTask = task.type === 'FMS' ? (task.source as ProjectTask) : null;
-    
+
     // Debug logging
     console.log('🔍 Completing task:', task);
     console.log('🔍 Is FMS task?', task.type === 'FMS');
     console.log('🔍 Task source:', fmsTask);
     console.log('🔍 Requires checklist?', fmsTask?.requiresChecklist);
     console.log('🔍 Checklist items:', fmsTask?.checklistItems);
-    
+
     const hasChecklist = fmsTask?.requiresChecklist && fmsTask?.checklistItems && fmsTask.checklistItems.length > 0;
-    
+
     console.log('🔍 Has checklist?', hasChecklist);
-    
+
     if (hasChecklist) {
       console.log('✅ Showing checklist modal!');
       // Show checklist modal
@@ -691,7 +697,7 @@ export default function Dashboard() {
       if (task.type === 'FMS') {
         const fmsTask = task.source as ProjectTask;
         if (!fmsTask.rowIndex) return;
-        
+
         const result = await api.updateTaskStatus(fmsTask.rowIndex, 'Done', user!.username);
         if (result.success) {
           showSuccess('Task completed successfully!');
@@ -705,11 +711,11 @@ export default function Dashboard() {
       } else {
         const tmTask = task.source as TaskData;
         const result = await api.updateTask(tmTask['Task Id'], 'complete', {});
-        
+
         if (result.success) {
           showSuccess('Task completed successfully!');
           // Update local state instead of reloading
-          setTmTasks(prev => prev.map(t => 
+          setTmTasks(prev => prev.map(t =>
             t['Task Id'] === tmTask['Task Id'] ? { ...t, 'Task Status': 'Completed' } : t
           ));
         } else {
@@ -724,8 +730,8 @@ export default function Dashboard() {
   };
 
   const toggleChecklistItem = (itemId: string) => {
-    setChecklistItems(prev => 
-      prev.map(item => 
+    setChecklistItems(prev =>
+      prev.map(item =>
         item.id === itemId ? { ...item, completed: !item.completed } : item
       )
     );
@@ -745,7 +751,7 @@ export default function Dashboard() {
     setUpdating(selectedTaskForObjection.id);
     try {
       const task = selectedTaskForObjection;
-      
+
       const result = await api.raiseObjection({
         taskId: task.type === 'FMS' ? `${task.projectName}-${(task.source as ProjectTask).stepNo}` : (task.source as TaskData)['Task Id'],
         projectId: task.projectName,
@@ -792,7 +798,7 @@ export default function Dashboard() {
 
     try {
       let result;
-      
+
       if (holdAction === 'reject') {
         result = await api.reviewObjection({
           objectionId: selectedObjectionForHold.objectionId,
@@ -841,7 +847,7 @@ export default function Dashboard() {
             message = 'Task put on hold';
             break;
         }
-        
+
         setShowHoldModal(false);
         showSuccess(message);
         await loadObjections();
@@ -861,10 +867,10 @@ export default function Dashboard() {
 
   const executeConfirmedAction = async () => {
     if (!confirmAction) return;
-    
+
     setShowConfirmModal(false);
     setUpdating(confirmAction.revision.revisionId);
-    
+
     try {
       if (confirmAction.type === 'approve') {
         const result = await api.approveFMSRevision({
@@ -920,11 +926,11 @@ export default function Dashboard() {
   const getStatusColor = (status: string) => {
     const statusLower = status.toLowerCase();
     if (statusLower === 'done' || statusLower === 'completed') {
-        return 'bg-green-100 text-green-800 border-green-200';
+      return 'bg-green-100 text-green-800 border-green-200';
     } else if (statusLower === 'in progress') {
-        return 'bg-blue-100 text-blue-800 border-blue-200';
+      return 'bg-blue-100 text-blue-800 border-blue-200';
     } else if (statusLower === 'pending') {
-        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      return 'bg-yellow-100 text-yellow-800 border-yellow-200';
     } else if (statusLower === 'revise' || statusLower === 'revision') {
       return 'bg-orange-100 text-orange-800 border-orange-200';
     }
@@ -932,7 +938,7 @@ export default function Dashboard() {
   };
 
   const getTypeColor = (type: 'FMS' | 'TASK_MANAGEMENT') => {
-    return type === 'FMS' 
+    return type === 'FMS'
       ? 'bg-purple-100 text-purple-800 border-purple-200'
       : 'bg-cyan-100 text-cyan-800 border-cyan-200';
   };
@@ -968,6 +974,12 @@ export default function Dashboard() {
       Icon: TrendingUp,
       label: 'Refresh',
       gradient: 'from-slate-600 via-gray-600 to-slate-700',
+    },
+    {
+      onClick: () => setActiveTab('assign'),
+      Icon: Plus,
+      label: 'Order',
+      gradient: 'from-cyan-600 via-blue-600 to-teal-600',
     },
   ]), [navigate, loadObjections, loadTaskManagementData]);
 
@@ -1025,9 +1037,9 @@ export default function Dashboard() {
               { label: 'Completed', value: completedTasks, subtitle: '', color: 'green', delay: 0.25 },
               { label: 'Due Tasks', value: dueTasks, subtitle: '', color: 'yellow', delay: 0.3 },
               { label: 'Completion', value: `${completionRate}%`, subtitle: '', color: 'blue', delay: 0.35 },
-             ].map((stat, index) => {
+            ].map((stat, index) => {
               // Define complete color schemes for each stat
-              const colorSchemes: Record<string, {bg: string, border: string, text: string, value: string, hover: string}> = {
+              const colorSchemes: Record<string, { bg: string, border: string, text: string, value: string, hover: string }> = {
                 slate: {
                   bg: 'from-slate-50 to-slate-100',
                   border: 'border-slate-200',
@@ -1071,9 +1083,9 @@ export default function Dashboard() {
                   hover: 'hover:border-blue-400 hover:shadow-blue-200/50'
                 }
               };
-              
+
               const colors = colorSchemes[stat.color as keyof typeof colorSchemes];
-              
+
               return (
                 <motion.div
                   key={index}
@@ -1111,7 +1123,7 @@ export default function Dashboard() {
               {[
                 { id: 'assignedToMe', icon: ListChecks, label: 'Assigned To Me', count: allUnifiedTasks.length },
                 { id: 'iAssigned', icon: Send, label: 'Tasks I Assigned', count: tasksIAssigned.length },
-                ...(user?.role?.toLowerCase() === 'superadmin' || user?.role?.toLowerCase() === 'super admin' 
+                ...(user?.role?.toLowerCase() === 'superadmin' || user?.role?.toLowerCase() === 'super admin'
                   ? [{ id: 'allTasks', icon: Target, label: 'All Tasks', count: allTasksForAdmin.length }]
                   : []
                 ),
@@ -1121,6 +1133,7 @@ export default function Dashboard() {
                 { id: 'objections', icon: AlertCircle, label: 'Objections', count: objections.length },
                 { id: 'assign', icon: Plus, label: 'Assign Task', count: null },
                 { id: 'performance', icon: BarChart3, label: 'Performance', count: null },
+                { id: 'order', icon: Plus, label: 'Order', count: null },
               ].map((tab, index) => {
                 const Icon = tab.icon;
                 const isActive = activeTab === tab.id;
@@ -1138,22 +1151,20 @@ export default function Dashboard() {
                       setSearchQuery(''); // Clear search
                       setStatusFilter('all'); // Reset filters
                       setTypeFilter('all');
-                      setDateRangeFilter({start: '', end: ''});
+                      setDateRangeFilter({ start: '', end: '' });
                     }}
-                    className={`relative flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold whitespace-nowrap text-sm transition-all duration-300 ${
-                      isActive
+                    className={`relative flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold whitespace-nowrap text-sm transition-all duration-300 ${isActive
                         ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-500/30'
                         : 'bg-slate-50 text-slate-700 hover:bg-slate-100 hover:shadow-md border border-slate-200/50'
-                    }`}
+                      }`}
                   >
                     <Icon className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
                     <span className="font-semibold tracking-wide">{tab.label}</span>
                     {tab.count !== null && (
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                        isActive ? 'bg-white/20 text-white' : 'bg-indigo-100 text-indigo-700'
-                    }`}>
-                      {tab.count}
-                    </span>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${isActive ? 'bg-white/20 text-white' : 'bg-indigo-100 text-indigo-700'
+                        }`}>
+                        {tab.count}
+                      </span>
                     )}
                   </motion.button>
                 );
@@ -1178,9 +1189,9 @@ export default function Dashboard() {
               <button onClick={() => setSuccess('')} className="ml-auto">
                 <X className="w-4 h-4" />
               </button>
-          </div>
-        )}
-        
+            </div>
+          )}
+
           {/* Search and Filter Bar - Show only for task tabs */}
           {(activeTab === 'assignedToMe' || activeTab === 'iAssigned' || activeTab === 'allTasks' || activeTab === 'fms' || activeTab === 'tm' || activeTab === 'due') && (
             <div className="mb-6 space-y-4">
@@ -1213,7 +1224,7 @@ export default function Dashboard() {
                   </button>
                 )}
               </div>
-              
+
               {/* Filters */}
               <div className="flex flex-wrap gap-3">
                 <select
@@ -1231,7 +1242,7 @@ export default function Dashboard() {
                   <option value="done">Done</option>
                   <option value="revision">Revision</option>
                 </select>
-                
+
                 <select
                   value={typeFilter}
                   onChange={(e) => {
@@ -1244,36 +1255,36 @@ export default function Dashboard() {
                   <option value="FMS">FMS Projects</option>
                   <option value="TASK_MANAGEMENT">Delegated Tasks</option>
                 </select>
-                
+
                 <input
                   type="date"
                   value={dateRangeFilter.start}
                   onChange={(e) => {
-                    setDateRangeFilter({...dateRangeFilter, start: e.target.value});
+                    setDateRangeFilter({ ...dateRangeFilter, start: e.target.value });
                     setCurrentPage(1);
                   }}
                   className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
                   placeholder="Start Date"
                 />
-                
+
                 <input
                   type="date"
                   value={dateRangeFilter.end}
                   onChange={(e) => {
-                    setDateRangeFilter({...dateRangeFilter, end: e.target.value});
+                    setDateRangeFilter({ ...dateRangeFilter, end: e.target.value });
                     setCurrentPage(1);
                   }}
                   className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
                   placeholder="End Date"
                 />
-                
+
                 {(searchQuery || statusFilter !== 'all' || typeFilter !== 'all' || dateRangeFilter.start || dateRangeFilter.end) && (
                   <button
                     onClick={() => {
                       setSearchQuery('');
                       setStatusFilter('all');
                       setTypeFilter('all');
-                      setDateRangeFilter({start: '', end: ''});
+                      setDateRangeFilter({ start: '', end: '' });
                       setCurrentPage(1);
                     }}
                     className="px-4 py-2 bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-100 transition-colors text-sm font-medium"
@@ -1282,7 +1293,7 @@ export default function Dashboard() {
                   </button>
                 )}
               </div>
-              
+
               <div className="text-sm text-slate-600">
                 Showing {filteredTasks.length} {filteredTasks.length === 1 ? 'task' : 'tasks'}
               </div>
@@ -1319,7 +1330,7 @@ export default function Dashboard() {
                               </p>
                             </div>
                           </div>
-                          
+
                           <div className="bg-white p-3 rounded-lg mb-3">
                             <p className="text-sm text-slate-700 mb-2">
                               <strong>Reason for Objection:</strong>
@@ -1374,428 +1385,426 @@ export default function Dashboard() {
               )}
             </div>
           ) : activeTab === 'assign' ? (
-            // Assign Task Section
+          // Assign Task Section
+          <div className="max-w-2xl mx-auto">
+            <form onSubmit={handleAssignTask} className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Assign To
+                </label>
+                <select
+                  value={assignForm.assignedTo}
+                  onChange={(e) => setAssignForm({ ...assignForm, assignedTo: e.target.value })}
+                  required
+                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent"
+                >
+                  <option value="">Select User</option>
+                  {taskUsers.map(user => (
+                    <option key={user.userId} value={user.userId}>
+                      {user.name} ({user.department})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Task Description
+                </label>
+                <textarea
+                  value={assignForm.description}
+                  onChange={(e) => setAssignForm({ ...assignForm, description: e.target.value })}
+                  required
+                  rows={4}
+                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent"
+                  placeholder="Describe the task..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Department
+                </label>
+                <input
+                  type="text"
+                  value={assignForm.department}
+                  onChange={(e) => setAssignForm({ ...assignForm, department: e.target.value })}
+                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent"
+                  placeholder="Department (optional)"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Planned Date
+                </label>
+                <input
+                  type="date"
+                  value={assignForm.plannedDate}
+                  onChange={(e) => setAssignForm({ ...assignForm, plannedDate: e.target.value })}
+                  required
+                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Tutorial Links (Optional)
+                </label>
+                <input
+                  type="url"
+                  value={assignForm.tutorialLinks}
+                  onChange={(e) => setAssignForm({ ...assignForm, tutorialLinks: e.target.value })}
+                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent"
+                  placeholder="https://..."
+                />
+              </div>
+
+              {/* File Upload for Task */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  📎 Attachments (Optional)
+                </label>
+                <DriveFileUpload
+                  fmsName={`Task-${assignForm.description.substring(0, 20)}`}
+                  username={user!.username}
+                  onFilesUploaded={(files) => {
+                    setAssignForm({ ...assignForm, attachments: files });
+                  }}
+                  currentFiles={assignForm.attachments}
+                  maxFiles={3}
+                  maxSizeMB={2}
+                  onPendingFilesChange={setHasPendingUploads}
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={tmLoading}
+                className="w-full py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg font-medium hover:from-purple-700 hover:to-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {tmLoading ? (
+                  <>
+                    <Loader className="w-5 h-5 animate-spin" />
+                    Assigning...
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-5 h-5" />
+                    Assign Task
+                  </>
+                )}
+              </button>
+            </form>
+          </div>
+          ) : activeTab === 'performance' ? (
+          // Performance Section
+          <div className="space-y-6">
             <div className="max-w-2xl mx-auto">
-              <form onSubmit={handleAssignTask} className="space-y-6">
-                <div>
+              {/* User Selection for Scoring */}
+              {getScoringUsers().length > 1 && (
+                <div className="mb-6">
                   <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Assign To
+                    Select User for Scoring
                   </label>
                   <select
-                    value={assignForm.assignedTo}
-                    onChange={(e) => setAssignForm({ ...assignForm, assignedTo: e.target.value })}
-                    required
+                    value={selectedScoringUser}
+                    onChange={(e) => setSelectedScoringUser(e.target.value)}
                     className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent"
                   >
-                    <option value="">Select User</option>
-                    {taskUsers.map(user => (
+                    {getScoringUsers().map((user) => (
                       <option key={user.userId} value={user.userId}>
-                        {user.name} ({user.department})
+                        {user.name} ({user.userId}) - {user.department}
                       </option>
                     ))}
                   </select>
                 </div>
+              )}
 
-                <div>
+              <div className="flex gap-4 mb-6">
+                <div className="flex-1">
                   <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Task Description
-                  </label>
-                  <textarea
-                    value={assignForm.description}
-                    onChange={(e) => setAssignForm({ ...assignForm, description: e.target.value })}
-                    required
-                    rows={4}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent"
-                    placeholder="Describe the task..."
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Department
-                  </label>
-                  <input
-                    type="text"
-                    value={assignForm.department}
-                    onChange={(e) => setAssignForm({ ...assignForm, department: e.target.value })}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent"
-                    placeholder="Department (optional)"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Planned Date
+                    Start Date
                   </label>
                   <input
                     type="date"
-                    value={assignForm.plannedDate}
-                    onChange={(e) => setAssignForm({ ...assignForm, plannedDate: e.target.value })}
-                    required
+                    value={scoringDates.startDate}
+                    onChange={(e) => setScoringDates({ ...scoringDates, startDate: e.target.value })}
+                    max={new Date().toISOString().split('T')[0]}
                     className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent"
                   />
                 </div>
 
-                <div>
+                <div className="flex-1">
                   <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Tutorial Links (Optional)
+                    End Date
                   </label>
                   <input
-                    type="url"
-                    value={assignForm.tutorialLinks}
-                    onChange={(e) => setAssignForm({ ...assignForm, tutorialLinks: e.target.value })}
+                    type="date"
+                    value={scoringDates.endDate}
+                    onChange={(e) => setScoringDates({ ...scoringDates, endDate: e.target.value })}
+                    max={new Date().toISOString().split('T')[0]}
                     className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent"
-                    placeholder="https://..."
                   />
                 </div>
 
-                {/* File Upload for Task */}
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    📎 Attachments (Optional)
-                  </label>
-                  <DriveFileUpload
-                    fmsName={`Task-${assignForm.description.substring(0, 20)}`}
-                    username={user!.username}
-                    onFilesUploaded={(files) => {
-                      setAssignForm({ ...assignForm, attachments: files });
-                    }}
-                    currentFiles={assignForm.attachments}
-                    maxFiles={3}
-                    maxSizeMB={2}
-                    onPendingFilesChange={setHasPendingUploads}
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={tmLoading}
-                  className="w-full py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg font-medium hover:from-purple-700 hover:to-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  {tmLoading ? (
-                    <>
+                <div className="flex items-end">
+                  <button
+                    onClick={loadScoringData}
+                    disabled={loadingScoring}
+                    className="px-6 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg font-medium hover:from-purple-700 hover:to-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {loadingScoring ? (
                       <Loader className="w-5 h-5 animate-spin" />
-                      Assigning...
-                    </>
-                  ) : (
-                    <>
-                      <Send className="w-5 h-5" />
-                      Assign Task
-                    </>
-                  )}
-                </button>
-              </form>
+                    ) : (
+                      'Load'
+                    )}
+                  </button>
+                </div>
+              </div>
             </div>
-          ) : activeTab === 'performance' ? (
-            // Performance Section
-            <div className="space-y-6">
-              <div className="max-w-2xl mx-auto">
-                {/* User Selection for Scoring */}
-                {getScoringUsers().length > 1 && (
-                  <div className="mb-6">
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
-                      Select User for Scoring
-                    </label>
-                    <select
-                      value={selectedScoringUser}
-                      onChange={(e) => setSelectedScoringUser(e.target.value)}
-                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent"
-                    >
-                      {getScoringUsers().map((user) => (
-                        <option key={user.userId} value={user.userId}>
-                          {user.name} ({user.userId}) - {user.department}
-                        </option>
-                      ))}
-                    </select>
+
+            {scoringData && (
+              <div className="max-w-4xl mx-auto bg-slate-50 rounded-xl p-6 space-y-4">
+                <h3 className="text-xl font-bold text-slate-900 mb-4">
+                  Performance Report - {getScoringUsers().find(u => u.userId === selectedScoringUser)?.name || selectedScoringUser}
+                </h3>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-white rounded-lg p-4 border border-slate-200">
+                    <div className="text-sm text-slate-600 mb-1">Total Tasks</div>
+                    <div className="text-2xl font-bold text-slate-900">{Math.max(0, scoringData.totalTasks || 0)}</div>
                   </div>
-                )}
-                
-                <div className="flex gap-4 mb-6">
-                  <div className="flex-1">
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
-                      Start Date
-                    </label>
-                    <input
-                      type="date"
-                      value={scoringDates.startDate}
-                      onChange={(e) => setScoringDates({ ...scoringDates, startDate: e.target.value })}
-                      max={new Date().toISOString().split('T')[0]}
-                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent"
-                    />
+
+                  <div className="bg-white rounded-lg p-4 border border-slate-200">
+                    <div className="text-sm text-slate-600 mb-1">Completed</div>
+                    <div className="text-2xl font-bold text-green-600">{scoringData.completedTasks}</div>
                   </div>
-                  
-                  <div className="flex-1">
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
-                      End Date
-                    </label>
-                    <input
-                      type="date"
-                      value={scoringDates.endDate}
-                      onChange={(e) => setScoringDates({ ...scoringDates, endDate: e.target.value })}
-                      max={new Date().toISOString().split('T')[0]}
-                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent"
-                    />
+
+                  <div className="bg-white rounded-lg p-4 border border-slate-200">
+                    <div className="text-sm text-slate-600 mb-1">On Time</div>
+                    <div className="text-2xl font-bold text-blue-600">{scoringData.completedOnTime}</div>
                   </div>
-                  
-                  <div className="flex items-end">
-                    <button
-                      onClick={loadScoringData}
-                      disabled={loadingScoring}
-                      className="px-6 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg font-medium hover:from-purple-700 hover:to-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {loadingScoring ? (
-                        <Loader className="w-5 h-5 animate-spin" />
-                      ) : (
-                        'Load'
-                      )}
-                    </button>
+
+                  <div className="bg-white rounded-lg p-4 border border-slate-200">
+                    <div className="text-sm text-slate-600 mb-1">Not On Time</div>
+                    <div className="text-2xl font-bold text-orange-600">{scoringData.completedNotOnTime}</div>
+                  </div>
+
+                  <div className="bg-white rounded-lg p-4 border border-slate-200">
+                    <div className="text-sm text-slate-600 mb-1">Due Not Completed</div>
+                    <div className="text-2xl font-bold text-red-600">{scoringData.dueNotCompleted}</div>
+                  </div>
+
+                  <div className="bg-white rounded-lg p-4 border border-slate-200">
+                    <div className="text-sm text-slate-600 mb-1">Revisions</div>
+                    <div className="text-2xl font-bold text-slate-900">{scoringData.revisionsTaken}</div>
+                  </div>
+
+                  <div className="bg-white rounded-lg p-4 border border-slate-200">
+                    <div className="text-sm text-slate-600 mb-1">Scores Impacted</div>
+                    <div className="text-2xl font-bold text-slate-900">{scoringData.scoresImpacted}</div>
+                  </div>
+
+                  <div className="bg-white rounded-lg p-4 border border-slate-200">
+                    <div className="text-sm text-slate-600 mb-1">Total Score Sum</div>
+                    <div className="text-2xl font-bold text-slate-900">{scoringData.totalScoreSum}</div>
+                  </div>
+                </div>
+
+                <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl p-6 text-white mt-6">
+                  <div className="text-center">
+                    <div className="text-sm uppercase tracking-wide mb-2">Final Performance Score</div>
+                    <div className="text-5xl font-bold">{scoringData.finalScore}%</div>
                   </div>
                 </div>
               </div>
-
-              {scoringData && (
-                <div className="max-w-4xl mx-auto bg-slate-50 rounded-xl p-6 space-y-4">
-                  <h3 className="text-xl font-bold text-slate-900 mb-4">
-                    Performance Report - {getScoringUsers().find(u => u.userId === selectedScoringUser)?.name || selectedScoringUser}
-                  </h3>
-                  
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="bg-white rounded-lg p-4 border border-slate-200">
-                      <div className="text-sm text-slate-600 mb-1">Total Tasks</div>
-                      <div className="text-2xl font-bold text-slate-900">{Math.max(0, scoringData.totalTasks || 0)}</div>
-                    </div>
-                    
-                    <div className="bg-white rounded-lg p-4 border border-slate-200">
-                      <div className="text-sm text-slate-600 mb-1">Completed</div>
-                      <div className="text-2xl font-bold text-green-600">{scoringData.completedTasks}</div>
-                    </div>
-                    
-                    <div className="bg-white rounded-lg p-4 border border-slate-200">
-                      <div className="text-sm text-slate-600 mb-1">On Time</div>
-                      <div className="text-2xl font-bold text-blue-600">{scoringData.completedOnTime}</div>
-                    </div>
-                    
-                    <div className="bg-white rounded-lg p-4 border border-slate-200">
-                      <div className="text-sm text-slate-600 mb-1">Not On Time</div>
-                      <div className="text-2xl font-bold text-orange-600">{scoringData.completedNotOnTime}</div>
-                    </div>
-                    
-                    <div className="bg-white rounded-lg p-4 border border-slate-200">
-                      <div className="text-sm text-slate-600 mb-1">Due Not Completed</div>
-                      <div className="text-2xl font-bold text-red-600">{scoringData.dueNotCompleted}</div>
-                    </div>
-                    
-                    <div className="bg-white rounded-lg p-4 border border-slate-200">
-                      <div className="text-sm text-slate-600 mb-1">Revisions</div>
-                      <div className="text-2xl font-bold text-slate-900">{scoringData.revisionsTaken}</div>
-                    </div>
-                    
-                    <div className="bg-white rounded-lg p-4 border border-slate-200">
-                      <div className="text-sm text-slate-600 mb-1">Scores Impacted</div>
-                      <div className="text-2xl font-bold text-slate-900">{scoringData.scoresImpacted}</div>
-                    </div>
-                    
-                    <div className="bg-white rounded-lg p-4 border border-slate-200">
-                      <div className="text-sm text-slate-600 mb-1">Total Score Sum</div>
-                      <div className="text-2xl font-bold text-slate-900">{scoringData.totalScoreSum}</div>
-                    </div>
-                  </div>
-                  
-                  <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl p-6 text-white mt-6">
-                    <div className="text-center">
-                      <div className="text-sm uppercase tracking-wide mb-2">Final Performance Score</div>
-                      <div className="text-5xl font-bold">{scoringData.finalScore}%</div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-           ) : filteredTasks.length === 0 ? (
-            <div className="text-center py-12 text-slate-600">
-              <CheckSquare className="w-16 h-16 mx-auto mb-4 opacity-50" />
-              <p className="text-lg font-medium">No tasks found</p>
-              <p className="text-sm mt-2">
-                {activeTab === 'due' 
-                  ? 'You have no tasks due today. Great work!'
-                  : activeTab === 'fms'
+            )}
+          </div>
+          ) : filteredTasks.length === 0 ? (
+          <div className="text-center py-12 text-slate-600">
+            <CheckSquare className="w-16 h-16 mx-auto mb-4 opacity-50" />
+            <p className="text-lg font-medium">No tasks found</p>
+            <p className="text-sm mt-2">
+              {activeTab === 'due'
+                ? 'You have no tasks due today. Great work!'
+                : activeTab === 'fms'
                   ? 'No FMS project tasks assigned to you'
                   : activeTab === 'tm'
-                  ? 'No delegated tasks assigned to you'
-                  : activeTab === 'assignedToMe'
-                  ? 'No tasks assigned to you'
-                  : activeTab === 'iAssigned'
-                  ? 'You haven\'t assigned any tasks yet'
-                  : activeTab === 'allTasks'
-                  ? 'No tasks found in the system'
-                  : 'Start by creating an FMS project or delegating tasks'}
-              </p>
-            </div>
+                    ? 'No delegated tasks assigned to you'
+                    : activeTab === 'assignedToMe'
+                      ? 'No tasks assigned to you'
+                      : activeTab === 'iAssigned'
+                        ? 'You haven\'t assigned any tasks yet'
+                        : activeTab === 'allTasks'
+                          ? 'No tasks found in the system'
+                          : 'Start by creating an FMS project or delegating tasks'}
+            </p>
+          </div>
            ) : (() => {
               // Pagination calculation
               const totalPages = Math.ceil(filteredTasks.length / itemsPerPage);
-              const startIndex = (currentPage - 1) * itemsPerPage;
-              const endIndex = startIndex + itemsPerPage;
-              const paginatedTasks = filteredTasks.slice(startIndex, endIndex);
-              
-              return (
-            <div className="space-y-6">
-              {/* Mobile Card Layout for small screens */}
-              <div className="block md:hidden space-y-3">
-                {paginatedTasks.map((task) => (
-                  <motion.div
-                    key={task.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    whileHover={{ scale: 1.01, y: -2 }}
-                    className={`group bg-gradient-to-br from-white via-white to-slate-50/50 backdrop-blur-sm rounded-2xl p-5 shadow-md border hover:shadow-2xl transition-all duration-300 ${
-                      task.isOverdue ? 'border-red-300/60 bg-gradient-to-br from-red-50/30 to-red-100/20' : 'border-slate-200/60 hover:border-slate-300/80'
+          const startIndex = (currentPage - 1) * itemsPerPage;
+          const endIndex = startIndex + itemsPerPage;
+          const paginatedTasks = filteredTasks.slice(startIndex, endIndex);
+
+          return (
+          <div className="space-y-6">
+            {/* Mobile Card Layout for small screens */}
+            <div className="block md:hidden space-y-3">
+              {paginatedTasks.map((task) => (
+                <motion.div
+                  key={task.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  whileHover={{ scale: 1.01, y: -2 }}
+                  className={`group bg-gradient-to-br from-white via-white to-slate-50/50 backdrop-blur-sm rounded-2xl p-5 shadow-md border hover:shadow-2xl transition-all duration-300 ${task.isOverdue ? 'border-red-300/60 bg-gradient-to-br from-red-50/30 to-red-100/20' : 'border-slate-200/60 hover:border-slate-300/80'
                     }`}
-                  >
-                    <div className="flex items-start justify-between mb-3">
-                      <span className={`px-2 py-1 rounded-full text-xs font-semibold border ${getTypeColor(task.type)}`}>
-                        {task.type === 'FMS' ? 'FMS' : 'Task'}
-                      </span>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(task.status)}`}>
-                        {task.status}
-                      </span>
-                    </div>
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <span className={`px-2 py-1 rounded-full text-xs font-semibold border ${getTypeColor(task.type)}`}>
+                      {task.type === 'FMS' ? 'FMS' : 'Task'}
+                    </span>
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(task.status)}`}>
+                      {task.status}
+                    </span>
+                  </div>
 
-                    <div className="space-y-2 mb-3">
-                      <h3 className="font-bold text-slate-900 text-sm leading-tight">{task.title}</h3>
-                      {task.description && (
-                        <p className="text-xs text-slate-600 line-clamp-2">{task.description}</p>
-                      )}
-                      <div className="flex items-center gap-1 text-xs text-slate-500">
-                        <Calendar className="w-3 h-3" />
-                        <span className="whitespace-nowrap">{formatDate(task.dueDate)}</span>
-                      </div>
-                      {(task.projectName || task.department) && (
-                        <p className="text-xs text-slate-500">
-                          <span className="font-medium">Project:</span> {task.projectName || task.department}
-                        </p>
-                      )}
-                      {(activeTab === 'iAssigned' || activeTab === 'allTasks') && (
-                        <p className="text-xs text-slate-700 font-semibold">
-                          <span className="font-medium text-slate-500">Assignee:</span> {task.assignee}
-                        </p>
-                      )}
-                    </div>
-
-                    {/* Show checklist items if any */}
-                    {task.type === 'FMS' && (task.source as ProjectTask).requiresChecklist && (task.source as ProjectTask).checklistItems && (task.source as ProjectTask).checklistItems!.length > 0 && (
-                      <div className="mt-3 p-2 bg-blue-50/80 border border-blue-200/60 rounded-lg">
-                        <div className="flex items-center gap-1 mb-1">
-                          <CheckSquare className="w-3 h-3 text-blue-600" />
-                          <span className="text-blue-800 font-medium text-xs">Checklist:</span>
-                        </div>
-                        <div className="space-y-1">
-                          {(task.source as ProjectTask).checklistItems!.slice(0, 2).map((item: any, idx: number) => (
-                            <div key={idx} className="flex items-center gap-1">
-                              <div className={`w-3 h-3 rounded border flex items-center justify-center ${
-                                item.completed ? 'bg-green-600 border-green-600' : 'bg-white border-slate-300'
-                              }`}>
-                                {item.completed && <CheckCircle className="w-2 h-2 text-white" />}
-                              </div>
-                              <span className={`text-xs ${item.completed ? 'line-through text-green-700' : 'text-slate-700'}`}>
-                                {item.text}
-                              </span>
-                            </div>
-                          ))}
-                          {(task.source as ProjectTask).checklistItems!.length > 2 && (
-                            <div className="text-xs text-blue-600 font-medium">
-                              +{(task.source as ProjectTask).checklistItems!.length - 2} more items
-                            </div>
-                          )}
-                        </div>
-                      </div>
+                  <div className="space-y-2 mb-3">
+                    <h3 className="font-bold text-slate-900 text-sm leading-tight">{task.title}</h3>
+                    {task.description && (
+                      <p className="text-xs text-slate-600 line-clamp-2">{task.description}</p>
                     )}
+                    <div className="flex items-center gap-1 text-xs text-slate-500">
+                      <Calendar className="w-3 h-3" />
+                      <span className="whitespace-nowrap">{formatDate(task.dueDate)}</span>
+                    </div>
+                    {(task.projectName || task.department) && (
+                      <p className="text-xs text-slate-500">
+                        <span className="font-medium">Project:</span> {task.projectName || task.department}
+                      </p>
+                    )}
+                    {(activeTab === 'iAssigned' || activeTab === 'allTasks') && (
+                      <p className="text-xs text-slate-700 font-semibold">
+                        <span className="font-medium text-slate-500">Assignee:</span> {task.assignee}
+                      </p>
+                    )}
+                  </div>
 
-                    {/* Show attachments if any */}
-                    {(() => {
-                      const attachments = getTaskAttachments(task);
-                      return attachments.length > 0 && (
-                        <div className="flex items-center gap-1 mt-2">
-                          <Paperclip className="w-3 h-3 text-blue-600" />
-                          <button
-                            onClick={() => {
-                              setSelectedTaskForAttachments(task);
-                              setSelectedTaskAttachments(attachments);
-                              setShowAttachmentModal(true);
-                            }}
-                            className="text-xs text-blue-600 font-medium hover:text-blue-800 hover:underline"
-                          >
-                            {attachments.length} attachment(s)
-                          </button>
-                        </div>
-                      );
-                    })()}
-
-                    {(task.status !== 'Done' && task.status.toLowerCase() !== 'completed') && (
-                      <div className="flex flex-wrap gap-2 mt-4">
-                        {(activeTab !== 'iAssigned' && activeTab !== 'allTasks') ? (
-                          <>
-                            <button
-                              onClick={() => handleCompleteTask(task)}
-                              disabled={updating === task.id}
-                              className="flex-1 px-4 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl text-sm font-semibold hover:from-green-600 hover:to-emerald-700 hover:shadow-lg active:scale-95 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-md"
-                            >
-                              {updating === task.id ? <Loader className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
-                              Complete
-                            </button>
-                            <button
-                              onClick={() => {
-                                setSelectedTaskForObjection(task);
-                                setObjectionReason('');
-                                setShowObjectionModal(true);
-                              }}
-                              disabled={updating === task.id}
-                              className="flex-1 px-4 py-2.5 bg-gradient-to-r from-red-500 to-rose-600 text-white rounded-xl text-sm font-semibold hover:from-red-600 hover:to-rose-700 hover:shadow-lg active:scale-95 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-md"
-                            >
-                              <AlertCircle className="w-4 h-4" />
-                              Objection
-                            </button>
-                          </>
-                        ) : (
-                          <div className="w-full text-center py-2 text-sm text-slate-500 italic">
-                            View only - You assigned this task
+                  {/* Show checklist items if any */}
+                  {task.type === 'FMS' && (task.source as ProjectTask).requiresChecklist && (task.source as ProjectTask).checklistItems && (task.source as ProjectTask).checklistItems!.length > 0 && (
+                    <div className="mt-3 p-2 bg-blue-50/80 border border-blue-200/60 rounded-lg">
+                      <div className="flex items-center gap-1 mb-1">
+                        <CheckSquare className="w-3 h-3 text-blue-600" />
+                        <span className="text-blue-800 font-medium text-xs">Checklist:</span>
+                      </div>
+                      <div className="space-y-1">
+                        {(task.source as ProjectTask).checklistItems!.slice(0, 2).map((item: any, idx: number) => (
+                          <div key={idx} className="flex items-center gap-1">
+                            <div className={`w-3 h-3 rounded border flex items-center justify-center ${item.completed ? 'bg-green-600 border-green-600' : 'bg-white border-slate-300'
+                              }`}>
+                              {item.completed && <CheckCircle className="w-2 h-2 text-white" />}
+                            </div>
+                            <span className={`text-xs ${item.completed ? 'line-through text-green-700' : 'text-slate-700'}`}>
+                              {item.text}
+                            </span>
+                          </div>
+                        ))}
+                        {(task.source as ProjectTask).checklistItems!.length > 2 && (
+                          <div className="text-xs text-blue-600 font-medium">
+                            +{(task.source as ProjectTask).checklistItems!.length - 2} more items
                           </div>
                         )}
                       </div>
-                    )}
-                  </motion.div>
-                ))}
-              </div>
+                    </div>
+                  )}
 
-              {/* Desktop Table Layout */}
-              <div className="hidden md:block overflow-x-auto rounded-lg border border-slate-200">
-                <table className="w-full">
-                  <thead className="bg-slate-100">
-                    <tr>
-                      <th className="px-4 py-4 text-left text-xs font-bold text-slate-700 uppercase">Type</th>
-                      <th className="px-4 py-4 text-left text-xs font-bold text-slate-700 uppercase min-w-[200px]">Task</th>
-                      <th className="px-4 py-4 text-left text-xs font-bold text-slate-700 uppercase min-w-[150px]">Project</th>
-                      <th className="px-4 py-4 text-left text-xs font-bold text-slate-700 uppercase">Due Date</th>
-                      <th className="px-4 py-4 text-left text-xs font-bold text-slate-700 uppercase">Status</th>
-                      {(activeTab === 'iAssigned' || activeTab === 'allTasks') && (
-                        <th className="px-4 py-4 text-left text-xs font-bold text-slate-700 uppercase">Assignee</th>
+                  {/* Show attachments if any */}
+                  {(() => {
+                    const attachments = getTaskAttachments(task);
+                    return attachments.length > 0 && (
+                      <div className="flex items-center gap-1 mt-2">
+                        <Paperclip className="w-3 h-3 text-blue-600" />
+                        <button
+                          onClick={() => {
+                            setSelectedTaskForAttachments(task);
+                            setSelectedTaskAttachments(attachments);
+                            setShowAttachmentModal(true);
+                          }}
+                          className="text-xs text-blue-600 font-medium hover:text-blue-800 hover:underline"
+                        >
+                          {attachments.length} attachment(s)
+                        </button>
+                      </div>
+                    );
+                  })()}
+
+                  {(task.status !== 'Done' && task.status.toLowerCase() !== 'completed') && (
+                    <div className="flex flex-wrap gap-2 mt-4">
+                      {(activeTab !== 'iAssigned' && activeTab !== 'allTasks') ? (
+                        <>
+                          <button
+                            onClick={() => handleCompleteTask(task)}
+                            disabled={updating === task.id}
+                            className="flex-1 px-4 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl text-sm font-semibold hover:from-green-600 hover:to-emerald-700 hover:shadow-lg active:scale-95 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-md"
+                          >
+                            {updating === task.id ? <Loader className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                            Complete
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSelectedTaskForObjection(task);
+                              setObjectionReason('');
+                              setShowObjectionModal(true);
+                            }}
+                            disabled={updating === task.id}
+                            className="flex-1 px-4 py-2.5 bg-gradient-to-r from-red-500 to-rose-600 text-white rounded-xl text-sm font-semibold hover:from-red-600 hover:to-rose-700 hover:shadow-lg active:scale-95 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-md"
+                          >
+                            <AlertCircle className="w-4 h-4" />
+                            Objection
+                          </button>
+                        </>
+                      ) : (
+                        <div className="w-full text-center py-2 text-sm text-slate-500 italic">
+                          View only - You assigned this task
+                        </div>
                       )}
-                      <th className="px-4 py-4 text-left text-xs font-bold text-slate-700 uppercase">Actions</th>
+                    </div>
+                  )}
+                </motion.div>
+              ))}
+            </div>
+
+            {/* Desktop Table Layout */}
+            <div className="hidden md:block overflow-x-auto rounded-lg border border-slate-200">
+              <table className="w-full">
+                <thead className="bg-slate-100">
+                  <tr>
+                    <th className="px-4 py-4 text-left text-xs font-bold text-slate-700 uppercase">Type</th>
+                    <th className="px-4 py-4 text-left text-xs font-bold text-slate-700 uppercase min-w-[200px]">Task</th>
+                    <th className="px-4 py-4 text-left text-xs font-bold text-slate-700 uppercase min-w-[150px]">Project</th>
+                    <th className="px-4 py-4 text-left text-xs font-bold text-slate-700 uppercase">Due Date</th>
+                    <th className="px-4 py-4 text-left text-xs font-bold text-slate-700 uppercase">Status</th>
+                    {(activeTab === 'iAssigned' || activeTab === 'allTasks') && (
+                      <th className="px-4 py-4 text-left text-xs font-bold text-slate-700 uppercase">Assignee</th>
+                    )}
+                    <th className="px-4 py-4 text-left text-xs font-bold text-slate-700 uppercase">Actions</th>
                   </tr>
                 </thead>
-                  <tbody className="divide-y divide-slate-200/60">
+                <tbody className="divide-y divide-slate-200/60">
                   {paginatedTasks.map((task) => (
-                      <tr key={task.id} className={`hover:bg-slate-50 transition-colors ${task.isOverdue ? 'bg-red-50' : 'bg-white'}`}>
-                        <td className="px-4 py-3">
+                    <tr key={task.id} className={`hover:bg-slate-50 transition-colors ${task.isOverdue ? 'bg-red-50' : 'bg-white'}`}>
+                      <td className="px-4 py-3">
                         <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getTypeColor(task.type)}`}>
                           {task.type === 'FMS' ? 'FMS' : 'Task'}
                         </span>
                       </td>
-                        <td className="px-4 py-3">
+                      <td className="px-4 py-3">
                         <div className="text-sm font-medium text-slate-900 break-words min-w-[180px]">{task.title}</div>
                         {task.description && (
                           <div className="text-xs text-slate-500 mt-1 break-words line-clamp-2 max-w-[250px]">{task.description}</div>
                         )}
-                        
+
                         {/* Show checklist items if any */}
                         {task.type === 'FMS' && (task.source as ProjectTask).requiresChecklist && (task.source as ProjectTask).checklistItems && (task.source as ProjectTask).checklistItems!.length > 0 && (
                           <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs">
@@ -1806,9 +1815,8 @@ export default function Dashboard() {
                             <div className="space-y-1">
                               {(task.source as ProjectTask).checklistItems!.slice(0, 2).map((item: any, idx: number) => (
                                 <div key={idx} className="flex items-center gap-1">
-                                  <div className={`w-3 h-3 rounded border flex items-center justify-center ${
-                                    item.completed ? 'bg-green-600 border-green-600' : 'bg-white border-slate-300'
-                                  }`}>
+                                  <div className={`w-3 h-3 rounded border flex items-center justify-center ${item.completed ? 'bg-green-600 border-green-600' : 'bg-white border-slate-300'
+                                    }`}>
                                     {item.completed && <CheckCircle className="w-2 h-2 text-white" />}
                                   </div>
                                   <span className={`text-xs ${item.completed ? 'line-through text-green-700' : 'text-slate-700'}`}>
@@ -1824,7 +1832,7 @@ export default function Dashboard() {
                             </div>
                           </div>
                         )}
-                        
+
                         {/* Show attachments if any */}
                         {(() => {
                           const attachments = getTaskAttachments(task);
@@ -1852,7 +1860,7 @@ export default function Dashboard() {
                         <div className="flex items-center gap-1">
                           <Calendar className="w-3 h-3" />
                           <span className="whitespace-nowrap">{formatDate(task.dueDate)}</span>
-                      </div>
+                        </div>
                         {task.isOverdue && (
                           <span className="text-xs text-red-600 font-medium">Overdue!</span>
                         )}
@@ -1905,84 +1913,83 @@ export default function Dashboard() {
                   ))}
                 </tbody>
               </table>
-              </div>
-              
-              {/* Pagination Controls */}
-              {totalPages > 1 && (
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-6 border-t border-slate-200">
-                  <div className="text-sm text-slate-600">
-                    Showing {startIndex + 1} to {Math.min(endIndex, filteredTasks.length)} of {filteredTasks.length} tasks
-                  </div>
-                  
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setCurrentPage(1)}
-                      disabled={currentPage === 1}
-                      className="px-3 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      First
-                    </button>
-                    
-                    <button
-                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                      disabled={currentPage === 1}
-                      className="px-3 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      Previous
-                    </button>
-                    
-                    <div className="flex items-center gap-1">
-                      {Array.from({ length: totalPages }, (_, i) => i + 1)
-                        .filter(page => {
-                          // Show first page, last page, current page, and pages around current
-                          return (
-                            page === 1 ||
-                            page === totalPages ||
-                            Math.abs(page - currentPage) <= 1
-                          );
-                        })
-                        .map((page, index, array) => {
-                          // Add ellipsis if there's a gap
-                          const showEllipsisBefore = index > 0 && page - array[index - 1] > 1;
-                          
-                          return (
-                            <div key={page} className="flex items-center gap-1">
-                              {showEllipsisBefore && (
-                                <span className="px-2 text-slate-400">...</span>
-                              )}
-                              <button
-                                onClick={() => setCurrentPage(page)}
-                                className={`w-10 h-10 text-sm font-medium rounded-lg transition-all ${
-                                  currentPage === page
-                                    ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-500/30'
-                                    : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50'
-                                }`}
-                              >
-                                {page}
-                              </button>
-                            </div>
-                          );
-                        })}
-                    </div>
-                    
-                    <button
-                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                      disabled={currentPage === totalPages}
-                      className="px-3 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      Next
-                    </button>
-                    
-                    <button
-                      onClick={() => setCurrentPage(totalPages)}
-                      disabled={currentPage === totalPages}
-                      className="px-3 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      Last
-                    </button>
-                  </div>
+            </div>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-6 border-t border-slate-200">
+                <div className="text-sm text-slate-600">
+                  Showing {startIndex + 1} to {Math.min(endIndex, filteredTasks.length)} of {filteredTasks.length} tasks
                 </div>
-              )}
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setCurrentPage(1)}
+                    disabled={currentPage === 1}
+                    className="px-3 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    First
+                  </button>
+
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                    className="px-3 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Previous
+                  </button>
+
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1)
+                      .filter(page => {
+                        // Show first page, last page, current page, and pages around current
+                        return (
+                          page === 1 ||
+                          page === totalPages ||
+                          Math.abs(page - currentPage) <= 1
+                        );
+                      })
+                      .map((page, index, array) => {
+                        // Add ellipsis if there's a gap
+                        const showEllipsisBefore = index > 0 && page - array[index - 1] > 1;
+
+                        return (
+                          <div key={page} className="flex items-center gap-1">
+                            {showEllipsisBefore && (
+                              <span className="px-2 text-slate-400">...</span>
+                            )}
+                            <button
+                              onClick={() => setCurrentPage(page)}
+                              className={`w-10 h-10 text-sm font-medium rounded-lg transition-all ${currentPage === page
+                                  ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-500/30'
+                                  : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50'
+                                }`}
+                            >
+                              {page}
+                            </button>
+                          </div>
+                        );
+                      })}
+                  </div>
+
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage === totalPages}
+                    className="px-3 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Next
+                  </button>
+
+                  <button
+                    onClick={() => setCurrentPage(totalPages)}
+                    disabled={currentPage === totalPages}
+                    className="px-3 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Last
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
           );
           })()
@@ -1990,15 +1997,15 @@ export default function Dashboard() {
 
         </div>
 
-         {/* Quick Actions Footer */}
-         <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6">
-           <motion.div
-             initial={{ opacity: 0 }}
-             animate={{ opacity: 1 }}
-             transition={{ delay: 0.6 }}
-           >
-             <h3 className="text-lg font-bold text-slate-900 mb-4">Quick Actions</h3>
-             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {/* Quick Actions Footer */}
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.6 }}
+          >
+            <h3 className="text-lg font-bold text-slate-900 mb-4">Quick Actions</h3>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               {quickActions.map((action, index) => {
                 const Icon = action.Icon;
                 return (
@@ -2036,11 +2043,11 @@ export default function Dashboard() {
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-gradient-to-br from-red-600 to-orange-600 rounded-xl shadow-lg">
                   <AlertCircle className="w-5 h-5 text-white" />
-                      </div>
+                </div>
                 <h3 className="text-xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent">
                   Raise Objection
                 </h3>
-                                      </div>
+              </div>
               <button
                 onClick={() => setShowObjectionModal(false)}
                 className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-all"
@@ -2057,7 +2064,7 @@ export default function Dashboard() {
                 </p>
               </div>
               <p className="text-xs text-red-700/90 pl-6">
-                {selectedTaskForObjection.type === 'FMS' 
+                {selectedTaskForObjection.type === 'FMS'
                   ? 'This will be sent to the Step 1 person for review.'
                   : 'This will be sent to the task giver for review.'}
               </p>
@@ -2160,7 +2167,7 @@ export default function Dashboard() {
               <p className="text-sm text-slate-600">
                 <strong>Type:</strong> FMS Project Task
               </p>
-              
+
               {/* Show attachments if any */}
               {(() => {
                 const attachments = getTaskAttachments(taskToComplete);
@@ -2194,28 +2201,25 @@ export default function Dashboard() {
               {checklistItems.map((item, index) => (
                 <div
                   key={item.id}
-                  className={`flex items-start gap-3 p-3 rounded-lg border-2 transition-all cursor-pointer ${
-                    item.completed 
-                      ? 'bg-green-50 border-green-300' 
+                  className={`flex items-start gap-3 p-3 rounded-lg border-2 transition-all cursor-pointer ${item.completed
+                      ? 'bg-green-50 border-green-300'
                       : 'bg-slate-50 border-slate-200 hover:border-blue-300'
-                  }`}
+                    }`}
                   onClick={() => toggleChecklistItem(item.id)}
                 >
                   <div className="flex-shrink-0 mt-1">
-                    <div className={`w-6 h-6 rounded border-2 flex items-center justify-center transition-all ${
-                      item.completed
+                    <div className={`w-6 h-6 rounded border-2 flex items-center justify-center transition-all ${item.completed
                         ? 'bg-green-600 border-green-600'
                         : 'bg-white border-slate-300'
-                    }`}>
+                      }`}>
                       {item.completed && (
                         <CheckCircle className="w-4 h-4 text-white" />
                       )}
                     </div>
                   </div>
                   <div className="flex-1">
-                    <p className={`text-sm font-medium ${
-                      item.completed ? 'text-green-900 line-through' : 'text-slate-900'
-                    }`}>
+                    <p className={`text-sm font-medium ${item.completed ? 'text-green-900 line-through' : 'text-slate-900'
+                      }`}>
                       {index + 1}. {item.text}
                     </p>
                   </div>
@@ -2291,20 +2295,19 @@ export default function Dashboard() {
               >
                 <X className="w-6 h-6" />
               </button>
-                                  </div>
+            </div>
 
             <div className="mb-6">
-              <div className={`p-4 rounded-lg mb-4 ${
-                confirmAction.type === 'approve' 
-                  ? 'bg-green-50 border border-green-200' 
+              <div className={`p-4 rounded-lg mb-4 ${confirmAction.type === 'approve'
+                  ? 'bg-green-50 border border-green-200'
                   : 'bg-red-50 border border-red-200'
-              }`}>
+                }`}>
                 <p className="text-sm font-medium mb-2">
-                  {confirmAction.type === 'approve' 
-                    ? '✓ You are about to APPROVE this revision request' 
+                  {confirmAction.type === 'approve'
+                    ? '✓ You are about to APPROVE this revision request'
                     : '✕ You are about to REJECT this revision request'}
                 </p>
-                                </div>
+              </div>
 
               <div className="space-y-2 text-sm text-slate-700">
                 <p><strong>Project:</strong> {confirmAction.revision.projectName}</p>
@@ -2315,16 +2318,16 @@ export default function Dashboard() {
                   <p><strong>New Date:</strong> {formatDate(confirmAction.revision.requestedNewDate)}</p>
                 )}
                 <p><strong>Reason:</strong> {confirmAction.revision.reason}</p>
-                          </div>
+              </div>
 
               {confirmAction.type === 'approve' && confirmAction.revision.requestedNewDate && (
                 <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                   <p className="text-sm text-blue-800">
                     <strong>Note:</strong> The task due date will be updated to {formatDate(confirmAction.revision.requestedNewDate)}
                   </p>
-                        </div>
-                      )}
-                    </div>
+                </div>
+              )}
+            </div>
 
             <div className="flex gap-3 justify-end">
               <button
@@ -2338,18 +2341,17 @@ export default function Dashboard() {
               </button>
               <button
                 onClick={executeConfirmedAction}
-                className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors ${
-                  confirmAction.type === 'approve'
+                className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors ${confirmAction.type === 'approve'
                     ? 'bg-green-600 hover:bg-green-700'
                     : 'bg-red-600 hover:bg-red-700'
-                }`}
+                  }`}
               >
                 {confirmAction.type === 'approve' ? 'Confirm Approval' : 'Confirm Rejection'}
               </button>
-              </div>
+            </div>
           </div>
-          </div>
-        )}
+        </div>
+      )}
       {/* Hold Options Modal */}
       {showHoldModal && selectedObjectionForHold && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4">
@@ -2438,12 +2440,11 @@ export default function Dashboard() {
               <button
                 onClick={executeHoldAction}
                 disabled={updating === selectedObjectionForHold.objectionId || !holdData.reason.trim()}
-                className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${
-                  holdAction === 'reject' ? 'bg-slate-600 hover:bg-slate-700' :
-                  holdAction === 'terminate' ? 'bg-red-600 hover:bg-red-700' :
-                  holdAction === 'replace' ? 'bg-green-600 hover:bg-green-700' :
-                  'bg-yellow-600 hover:bg-yellow-700'
-                }`}
+                className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${holdAction === 'reject' ? 'bg-slate-600 hover:bg-slate-700' :
+                    holdAction === 'terminate' ? 'bg-red-600 hover:bg-red-700' :
+                      holdAction === 'replace' ? 'bg-green-600 hover:bg-green-700' :
+                        'bg-yellow-600 hover:bg-yellow-700'
+                  }`}
               >
                 {updating === selectedObjectionForHold.objectionId ? (
                   <>
